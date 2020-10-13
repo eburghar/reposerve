@@ -1,5 +1,5 @@
 [package]
-name = "apkserver"
+name = "reposerve"
 version = "0.1.0"
 authors = ["Éric BURGHARD <eric.burghard@solarsis.ao>"]
 edition = "2018"
@@ -7,3 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+actix-files = "0.4"
+actix-web = { version = "3", features = ["openssl"]}
+futures = "0.3"
+serde_yaml = "0.8"
