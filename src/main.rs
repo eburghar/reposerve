@@ -5,13 +5,15 @@ use crate::{
 	args::Opts,
 	config::Config
 };
-use actix_files as fs;
-use actix_web::{App, HttpServer, HttpResponse, Error, web};
-use anyhow::Result;
-use std::io::Write;
-use actix_multipart::Multipart;
-use futures::{StreamExt, TryStreamExt};
 
+use actix_files::Files;
+use actix_multipart::Multipart;
+use actix_web::{App, HttpServer, HttpResponse, Error, web, post};
+use anyhow::Result;
+use futures::{StreamExt, TryStreamExt};
+use std::io::Write;
+
+#[post("/upload")]
 async fn save_file(mut payload: Multipart) -> Result<HttpResponse, Error> {
 	// iterate over multipart stream
 	while let Ok(Some(mut field)) = payload.try_next().await {
@@ -38,8 +40,8 @@ async fn save_file(mut payload: Multipart) -> Result<HttpResponse, Error> {
 async fn serve() -> std::io::Result<()> {
 	HttpServer::new(|| {
 		App::new()
-			.route("/upload", web::post().to(save_file))
-			.service(fs::Files::new("/", ".").show_files_listing())
+			.service(save_file)
+			.service(Files::new("/", ".").show_files_listing())
 	})
 	.bind("127.0.0.1:8080")?
 	.run()
