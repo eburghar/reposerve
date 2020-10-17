@@ -15,7 +15,7 @@ use actix_web::{
 	HttpServer,
 	HttpResponse,
 	Error,
-	web, post,
+	web,
 	middleware::Logger
 };
 use futures::{
@@ -24,7 +24,6 @@ use futures::{
 };
 use std::io::Write;
 
-#[post("/upload")]
 async fn save_file(mut payload: Multipart) -> Result<HttpResponse, Error> {
 	// iterate over multipart stream
 	while let Ok(Some(mut field)) = payload.try_next().await {
@@ -54,9 +53,10 @@ async fn serve(config: Config) -> std::io::Result<()> {
     HttpServer::new(move || {
 		App::new()
 			.wrap(Logger::default())
-			.wrap(TokenAuth)
 			.data(config.clone())
-			.service(save_file)
+			.service(web::resource("/upload")
+				.wrap(TokenAuth)
+				.route(web::post().to(save_file)))
 			.service(Files::new("/", ".").show_files_listing())
 	})
 	.bind("127.0.0.1:8080")?

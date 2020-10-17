@@ -72,7 +72,6 @@ where
 				let config = req.app_data::<Data<Config>>();
 				if let Some(config) = config {
 					if token == config.token {
-						println!("token: {}", config.token);
 						return Either::Left(self.service.call(req));
 					}
 				}
