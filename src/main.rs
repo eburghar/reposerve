@@ -15,7 +15,8 @@ use actix_web::{
 	HttpServer,
 	HttpResponse,
 	Error,
-	web, post
+	web, post,
+	middleware::Logger
 };
 use futures::{
 	StreamExt,
@@ -48,8 +49,11 @@ async fn save_file(mut payload: Multipart, _: Authorized) -> Result<HttpResponse
 
 #[actix_web::main]
 async fn serve(config: Config) -> std::io::Result<()> {
-	HttpServer::new(move || {
+    std::env::set_var("RUST_LOG", "actix_web=info");
+    env_logger::init();
+    HttpServer::new(move || {
 		App::new()
+			.wrap(Logger::default())
 			.data(config.clone())
 			.service(save_file)
 			.service(Files::new("/", ".").show_files_listing())
