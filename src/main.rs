@@ -5,7 +5,7 @@ mod auth;
 use crate::{
 	args::Opts,
 	config::Config,
-	auth::Authorized
+	auth::TokenAuth
 };
 
 use actix_files::Files;
@@ -25,7 +25,7 @@ use futures::{
 use std::io::Write;
 
 #[post("/upload")]
-async fn save_file(mut payload: Multipart, _: Authorized) -> Result<HttpResponse, Error> {
+async fn save_file(mut payload: Multipart) -> Result<HttpResponse, Error> {
 	// iterate over multipart stream
 	while let Ok(Some(mut field)) = payload.try_next().await {
 		let content_type = field.content_disposition().unwrap();
@@ -54,6 +54,7 @@ async fn serve(config: Config) -> std::io::Result<()> {
     HttpServer::new(move || {
 		App::new()
 			.wrap(Logger::default())
+			.wrap(TokenAuth)
 			.data(config.clone())
 			.service(save_file)
 			.service(Files::new("/", ".").show_files_listing())
