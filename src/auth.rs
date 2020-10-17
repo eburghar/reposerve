@@ -17,11 +17,11 @@ use futures::future::{
 
 pub struct Authorized;
 
-pub fn is_authorized(req: &HttpRequest, payload: &mut Payload) -> bool {
+pub fn is_authorized(req: &HttpRequest) -> bool {
 	if let Some(token) = req.headers().get("token") {
 		if let Ok(token) = token.to_str() {
-			let config: Result<Data<Config>, Error> = Data::from_request(req, payload).into_inner();
-			if let Ok(config) = config {
+			let config = req.app_data::<Data<Config>>();
+			if let Some(config) = config {
 				return token == config.token;
 			}
 		}
@@ -34,8 +34,8 @@ impl FromRequest for Authorized {
 	type Future = Ready<Result<Self, Self::Error>>;
 	type Config = ();
 	
-	fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-		if is_authorized(req, payload) {
+	fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+		if is_authorized(req) {
 			ok(Authorized)
 		}
 		else {
