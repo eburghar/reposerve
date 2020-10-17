@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use anyhow::{Result, Context};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Config {
     pub token: String,
     pub webhooks: BTreeMap<String, String>,

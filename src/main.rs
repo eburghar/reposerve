@@ -1,20 +1,30 @@
 mod args;
 mod config;
+mod auth;
 
 use crate::{
 	args::Opts,
-	config::Config
+	config::Config,
+	auth::Authorized
 };
 
 use actix_files::Files;
 use actix_multipart::Multipart;
-use actix_web::{App, HttpServer, HttpResponse, Error, web, post};
-use anyhow::Result;
-use futures::{StreamExt, TryStreamExt};
+use actix_web::{
+	App,
+	HttpServer,
+	HttpResponse,
+	Error,
+	web, post
+};
+use futures::{
+	StreamExt,
+	TryStreamExt,
+};
 use std::io::Write;
 
 #[post("/upload")]
-async fn save_file(mut payload: Multipart) -> Result<HttpResponse, Error> {
+async fn save_file(mut payload: Multipart, _: Authorized) -> Result<HttpResponse, Error> {
 	// iterate over multipart stream
 	while let Ok(Some(mut field)) = payload.try_next().await {
 		let content_type = field.content_disposition().unwrap();
@@ -37,9 +47,10 @@ async fn save_file(mut payload: Multipart) -> Result<HttpResponse, Error> {
 }
 
 #[actix_web::main]
-async fn serve() -> std::io::Result<()> {
-	HttpServer::new(|| {
+async fn serve(config: Config) -> std::io::Result<()> {
+	HttpServer::new(move || {
 		App::new()
+			.data(config.clone())
 			.service(save_file)
 			.service(Files::new("/", ".").show_files_listing())
 	})
@@ -48,10 +59,10 @@ async fn serve() -> std::io::Result<()> {
 	.await
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
 	let opts: Opts = argh::from_env();
 	// read yaml config
 	let config = Config::read(&opts.config)?;
-	serve().unwrap();
+	serve(config).unwrap();
 	Ok(())
 }
