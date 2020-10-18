@@ -1325,6 +1325,7 @@ dependencies = [
  "actix-web",
  "anyhow",
  "argh",
+ "bytes",
  "env_logger",
  "futures",
  "log",
