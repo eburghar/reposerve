@@ -1327,6 +1327,7 @@ dependencies = [
  "argh",
  "env_logger",
  "futures",
+ "log",
  "sanitize-filename",
  "serde",
  "serde_yaml",

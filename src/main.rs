@@ -25,6 +25,7 @@ use futures::{
 };
 use std::io::Write;
 use std::process::Command;
+use log::info;
 
 #[post("/upload", wrap="TokenAuth")]
 async fn save_file(mut payload: Multipart) -> Result<HttpResponse, Error> {
@@ -64,8 +65,10 @@ async fn webhooks(web::Path(webhook): web::Path<String>, config: web::Data<Confi
 
 #[actix_web::main]
 async fn serve(config: Config) -> std::io::Result<()> {
-    std::env::set_var("RUST_LOG", "actix_web=info");
+	let addr_port = "0.0.0.0:8080";
+    std::env::set_var("RUST_LOG", "reposerve=info,actix_web=info");
     env_logger::init();
+    info!("listening on {}", addr_port);
     HttpServer::new(move || {
 		App::new()
 			.wrap(Logger::default())
@@ -74,7 +77,7 @@ async fn serve(config: Config) -> std::io::Result<()> {
 			.service(save_file)
 			.service(Files::new("/", ".").show_files_listing())
 	})
-	.bind("127.0.0.1:8080")?
+	.bind(addr_port)?
 	.run()
 	.await
 }
