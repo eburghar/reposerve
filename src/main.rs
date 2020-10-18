@@ -16,6 +16,7 @@ use actix_web::{
 	HttpResponse,
 	Error,
 	web,
+	post,
 	middleware::Logger
 };
 use futures::{
@@ -23,7 +24,9 @@ use futures::{
 	TryStreamExt,
 };
 use std::io::Write;
+use std::process::Command;
 
+#[post("/upload", wrap="TokenAuth")]
 async fn save_file(mut payload: Multipart) -> Result<HttpResponse, Error> {
 	// iterate over multipart stream
 	while let Ok(Some(mut field)) = payload.try_next().await {
@@ -46,6 +49,19 @@ async fn save_file(mut payload: Multipart) -> Result<HttpResponse, Error> {
 	Ok(HttpResponse::Ok().into())
 }
 
+#[post("/webhook/{webhook}", wrap="TokenAuth")]
+async fn webhooks(web::Path(webhook): web::Path<String>, config: web::Data<Config>) -> HttpResponse {
+	match config.webhooks.get(webhook.as_str()) {
+		Some(script) => {
+			match Command::new(script).output() {
+				Ok(output) => HttpResponse::Ok().body(format!("{} executed with success: {}", script, std::str::from_utf8(&output.stdout).unwrap_or(""))),
+				Err(error) => HttpResponse::NotFound().body(format!("failed to execute {}: {}", script, error))
+			}
+		},
+		_ => HttpResponse::NotFound().body("Not found")
+	}
+}
+
 #[actix_web::main]
 async fn serve(config: Config) -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=info");
@@ -54,9 +70,8 @@ async fn serve(config: Config) -> std::io::Result<()> {
 		App::new()
 			.wrap(Logger::default())
 			.data(config.clone())
-			.service(web::resource("/upload")
-				.wrap(TokenAuth)
-				.route(web::post().to(save_file)))
+			.service(webhooks)
+			.service(save_file)
 			.service(Files::new("/", ".").show_files_listing())
 	})
 	.bind("127.0.0.1:8080")?
