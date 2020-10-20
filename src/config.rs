@@ -2,10 +2,11 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fs::File;
+use std::path::PathBuf;
 
 #[derive(Deserialize, Clone)]
 pub struct Config {
-	pub dir: String,
+	pub dir: PathBuf,
 	pub token: String,
 	pub webhooks: BTreeMap<String, String>,
 }

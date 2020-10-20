@@ -11,9 +11,12 @@ use bytes::{BufMut, BytesMut};
 use futures::{StreamExt, TryStreamExt};
 use log::info;
 use sanitize_filename::sanitize;
-use std::fs::{self, File};
-use std::io::Write;
-use std::process::Command;
+use std::{
+	fs::{self, File},
+	io::Write,
+	process::Command
+};
+use tempdir::TempDir;
 
 #[derive(Debug)]
 struct ApkInfo {
@@ -46,6 +49,8 @@ async fn save_file(
 	mut payload: Multipart,
 	config: web::Data<Config>,
 ) -> Result<HttpResponse, Error> {
+	let temp_dir = TempDir::new("reposerve")?;
+
 	// iterate over multipart stream
 	let mut info = ApkInfo::new();
 	let mut files = Vec::new();
@@ -56,8 +61,8 @@ async fn save_file(
 				Some("file") => {
 					if let Some(filename) = content_type.get_filename() {
 						let sane_file = sanitize(&filename);
-						let filepath = format!("{}/{}", config.dir, sane_file);
-						info!("saving {}", filepath);
+						let filepath = temp_dir.path().join(&sane_file);
+						info!("saving {}", filepath.display());
 						files.push(sane_file);
 
 						// File::create is blocking operation, use threadpool
@@ -84,21 +89,36 @@ async fn save_file(
 			}
 		}
 	}
+
+	// create dest dir if necessary
+	let mut root = config.dir.join(sanitize(&info.version));
+	root.push(sanitize(&info.repo));
+	root.push(sanitize(&info.arch));
+	fs::create_dir_all(&root)?;
+
 	// move files to correct destination when we have all the info
 	for file in files {
-		let root = format!(
-			"{base}/{version}/{repo}/{arch}",
-			base = config.dir,
-			version = sanitize(&info.version),
-			repo = sanitize(&info.repo),
-			arch = sanitize(&info.arch)
-		);
-		fs::create_dir_all(&root)?;
-		fs::rename(
-			format! {"{}/{}", config.dir, file},
-			format! {"{}/{}", root, file},
-		)?;
+		let src = temp_dir.path().join(&file);
+		let dst = root.join(&file);
+		fs::copy(&src, &dst)?;
 	}
+
+	// call apk index to index all .apk files in root
+	let mut apk_args: Vec<String> = ["index", "-o", "APKINDEX.tar.gz", "--rewrite-arch", &info.arch].iter().map(|s| s.to_string()).collect();
+	for entry in fs::read_dir(&root)? {
+		let entry = entry?;
+		let path = entry.path();
+		if let Some(ext) = path.extension() {
+			let metadata = fs::metadata(&path)?;
+			if metadata.is_file() && ext == "apk" {
+				apk_args.push(String::from(path.file_name().unwrap().to_str().unwrap()));
+			}
+		}
+	}
+	Command::new("apk").current_dir(&root).args(&apk_args).output()?;
+
+	// call abuild-sign to sign index
+	Command::new("abuild-sign").current_dir(&root).args(&["APKINDEX.tar.gz"]).output()?;
 	Ok(HttpResponse::Ok().into())
 }
 
