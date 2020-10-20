@@ -1,25 +1,14 @@
 use crate::config::Config;
 
-use std::task::{Context, Poll};
-use actix_service::{
-	Service,
-	Transform
-};
+use actix_service::{Service, Transform};
 use actix_web::{
-	dev::{
-		ServiceRequest,
-		ServiceResponse
-	},
-	web::Data,
+	dev::{ServiceRequest, ServiceResponse},
 	error::ErrorUnauthorized,
-	Error
+	web::Data,
+	Error,
 };
-use futures::future::{
-	ok,
-	err,
-	Either,
-	Ready
-};
+use futures::future::{err, ok, Either, Ready};
+use std::task::{Context, Poll};
 
 // There are two steps in middleware processing.
 // 1. Middleware initialization, middleware factory gets called with
@@ -78,5 +67,5 @@ where
 			}
 		}
 		Either::Right(err(ErrorUnauthorized("not authorized")))
-	 }
- }
+	}
+}

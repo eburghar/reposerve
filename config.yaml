@@ -1,3 +1,4 @@
+dir: /home/eric/.workspace/rust/reposerve/tmp
 token: test
 webhooks:
   sign: /tmp/test.sh
