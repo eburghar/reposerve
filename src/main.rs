@@ -1,8 +1,9 @@
 mod args;
 mod auth;
 mod config;
+mod directory;
 
-use crate::{args::Opts, auth::TokenAuth, config::Config};
+use crate::{args::Opts, auth::TokenAuth, config::Config, directory::directory_listing};
 
 use actix_files::Files;
 use actix_multipart::Multipart;
@@ -103,7 +104,7 @@ async fn save_file(
 		fs::copy(&src, &dst)?;
 	}
 
-	// call apk index to index all .apk files in root
+	// call apk to index all .apk files in root
 	let mut apk_args: Vec<String> = ["index", "-o", "APKINDEX.tar.gz", "--rewrite-arch", &info.arch].iter().map(|s| s.to_string()).collect();
 	for entry in fs::read_dir(&root)? {
 		let entry = entry?;
@@ -115,10 +116,16 @@ async fn save_file(
 			}
 		}
 	}
-	Command::new("apk").current_dir(&root).args(&apk_args).output()?;
+	let cmd = Command::new("apk").current_dir(&root).args(&apk_args).output();
+	if let Ok(output) = cmd {
+		info!("{}", std::str::from_utf8(&output.stdout).unwrap_or(""));
+	}
 
-	// call abuild-sign to sign index
-	Command::new("abuild-sign").current_dir(&root).args(&["APKINDEX.tar.gz"]).output()?;
+	// call abuild-sign to sign generated index
+	let cmd = Command::new("abuild-sign").current_dir(&root).args(&["APKINDEX.tar.gz"]).output();
+	if let Ok(output) = cmd {
+		info!("{}", std::str::from_utf8(&output.stdout).unwrap_or(""));
+	}
 	Ok(HttpResponse::Ok().into())
 }
 
@@ -154,7 +161,11 @@ async fn serve(config: Config) -> std::io::Result<()> {
 			.data(config.clone())
 			.service(webhooks)
 			.service(save_file)
-			.service(Files::new("/", ".").show_files_listing())
+			.service(
+				Files::new("/", ".")
+				.show_files_listing()
+				.files_listing_renderer(directory_listing)
+			)
 	})
 	.bind(addr_port)?
 	.run()
