@@ -1,73 +1,73 @@
-use actix_web::{HttpRequest, HttpResponse, dev::ServiceResponse};
-use actix_files::{Directory};
-use std::{path::Path, fmt::Write, io};
-use percent_encoding::{utf8_percent_encode, CONTROLS};
-use v_htmlescape::escape as escape_html_entity;
+use actix_files::Directory;
+use actix_web::{dev::ServiceResponse, HttpRequest, HttpResponse};
 use chrono::{offset::Utc, DateTime};
+use percent_encoding::{utf8_percent_encode, CONTROLS};
 use size_format::SizeFormatterBinary;
+use std::{fmt::Write, io, path::Path};
+use v_htmlescape::escape as escape_html_entity;
 
-// show file url as relative to static path
-macro_rules! encode_file_url {
-    ($path:ident) => {
-        utf8_percent_encode(&$path, CONTROLS)
-    };
+struct DirEntry {
+	name: String,
+	url: String,
+	dt: DateTime<Utc>,
+	len: u64,
+	is_dir: bool,
 }
 
-// " -- &quot;  & -- &amp;  ' -- &#x27;  < -- &lt;  > -- &gt;  / -- &#x2f;
-macro_rules! encode_file_name {
-    ($entry:ident) => {
-        escape_html_entity(&$entry.file_name().to_string_lossy())
-    };
+impl DirEntry {
+	fn new(entry: std::fs::DirEntry, dir: &Directory, base: &Path) -> Option<Self> {
+		if let Ok(metadata) = entry.metadata() {
+			return match entry.path().strip_prefix(&dir.path) {
+				Ok(p) => Some(DirEntry {
+					name: escape_html_entity(&entry.file_name().to_string_lossy()).to_string(),
+					url: utf8_percent_encode(&base.join(p).to_string_lossy(), CONTROLS).to_string(),
+					dt: metadata.modified().unwrap().into(),
+					len: metadata.len(),
+					is_dir: metadata.is_dir(),
+				}),
+				_ => None,
+			};
+		}
+		None
+	}
 }
 
-pub fn directory_listing(
-    dir: &Directory,
-    req: &HttpRequest,
-) -> Result<ServiceResponse, io::Error> {
-    let index_of = format!("Index of {}", req.path());
-    let mut body = String::new();
-    let base = Path::new(req.path());
+pub fn directory_listing(dir: &Directory, req: &HttpRequest) -> Result<ServiceResponse, io::Error> {
+	let index_of = format!("Index of {}", req.path());
+	let mut body = String::new();
+	let base = Path::new(req.path());
 
-	let mut entries: Vec<_> = dir.path.read_dir()?
+	let mut entries: Vec<DirEntry> = dir
+		.path
+		.read_dir()?
 		.filter(|e| dir.is_visible(&e))
-		.map(|e| e.unwrap()).collect();
-	entries.sort_by(|a, b| a.path().partial_cmp(&b.path()).unwrap());
-    for entry in entries {
-        let p = match entry.path().strip_prefix(&dir.path) {
-            Ok(p) if cfg!(windows) => {
-                base.join(p).to_string_lossy().replace("\\", "/")
-            }
-            Ok(p) => base.join(p).to_string_lossy().into_owned(),
-            Err(_) => continue,
-        };
+		.filter_map(Result::ok)
+		.filter_map(|e| DirEntry::new(e, dir, base))
+		.collect();
 
-        // if file is a directory, add '/' to the end of the name
-        if let Ok(metadata) = entry.metadata() {
-            let dt: DateTime<Utc> = metadata.modified()?.into();
-            if metadata.is_dir() {
-                let _ = write!(
-                    body,
-                    "<li><a href=\"{}\">{}/</a></li>",
-                    encode_file_url!(p),
-                    encode_file_name!(entry)
-                );
-            } else {
-                let _ = write!(
-                    body,
-                    "<li><span><a href=\"{}\">{}</a></span><span>{}</span><span>{}B</span></li>",
-                    encode_file_url!(p),
-                    encode_file_name!(entry),
-                    dt.format("%Y/%m/%d %T"),
-                    SizeFormatterBinary::new(metadata.len())
-                );
-            }
-        } else {
-            continue;
-        }
-    }
+	entries.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
 
-    let html = format!(
-        "<html>\
+	for entry in entries {
+		if entry.is_dir {
+			let _ = write!(
+				body,
+				"<li><a href=\"{}\">{}/</a></li>",
+				entry.url, entry.name
+			);
+		} else {
+			let _ = write!(
+				body,
+				"<li><span><a href=\"{}\">{}</a></span><span>{}</span><span>{}B</span></li>",
+				entry.url,
+				entry.name,
+				entry.dt.format("%Y/%m/%d %T"),
+				SizeFormatterBinary::new(entry.len)
+			);
+		}
+	}
+
+	let html = format!(
+		"<html>\
          <head>
          <style>
          ul {{ list-style: none; }}
@@ -80,12 +80,12 @@ pub fn directory_listing(
          <ul>\
          {}\
          </ul><hr></body>\n</html>",
-        index_of, index_of, body
-    );
-    Ok(ServiceResponse::new(
-        req.clone(),
-        HttpResponse::Ok()
-            .content_type("text/html; charset=utf-8")
-            .body(html),
-    ))
+		index_of, index_of, body
+	);
+	Ok(ServiceResponse::new(
+		req.clone(),
+		HttpResponse::Ok()
+			.content_type("text/html; charset=utf-8")
+			.body(html),
+	))
 }

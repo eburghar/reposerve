@@ -15,7 +15,7 @@ use sanitize_filename::sanitize;
 use std::{
 	fs::{self, File},
 	io::Write,
-	process::Command
+	process::Command,
 };
 use tempdir::TempDir;
 
@@ -105,7 +105,16 @@ async fn save_file(
 	}
 
 	// call apk to index all .apk files in root
-	let mut apk_args: Vec<String> = ["index", "-o", "APKINDEX.tar.gz", "--rewrite-arch", &info.arch].iter().map(|s| s.to_string()).collect();
+	let mut apk_args: Vec<String> = [
+		"index",
+		"-o",
+		"APKINDEX.tar.gz",
+		"--rewrite-arch",
+		&info.arch,
+	]
+	.iter()
+	.map(|s| s.to_string())
+	.collect();
 	for entry in fs::read_dir(&root)? {
 		let entry = entry?;
 		let path = entry.path();
@@ -116,13 +125,19 @@ async fn save_file(
 			}
 		}
 	}
-	let cmd = Command::new("apk").current_dir(&root).args(&apk_args).output();
+	let cmd = Command::new("apk")
+		.current_dir(&root)
+		.args(&apk_args)
+		.output();
 	if let Ok(output) = cmd {
 		info!("{}", std::str::from_utf8(&output.stdout).unwrap_or(""));
 	}
 
 	// call abuild-sign to sign generated index
-	let cmd = Command::new("abuild-sign").current_dir(&root).args(&["APKINDEX.tar.gz"]).output();
+	let cmd = Command::new("abuild-sign")
+		.current_dir(&root)
+		.args(&["APKINDEX.tar.gz"])
+		.output();
 	if let Ok(output) = cmd {
 		info!("{}", std::str::from_utf8(&output.stdout).unwrap_or(""));
 	}
@@ -163,8 +178,8 @@ async fn serve(config: Config) -> std::io::Result<()> {
 			.service(save_file)
 			.service(
 				Files::new("/", ".")
-				.show_files_listing()
-				.files_listing_renderer(directory_listing)
+					.show_files_listing()
+					.files_listing_renderer(directory_listing),
 			)
 	})
 	.bind(addr_port)?
