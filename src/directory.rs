@@ -80,6 +80,7 @@ pub fn directory_listing(dir: &Directory, req: &HttpRequest) -> Result<ServiceRe
          <style>
          ul {{ list-style: none; }}
          li {{ display: flex; }}
+         li:hover {{ background-color: lightgray; }}
          li>span {{ width: 33.333333%; }}
          </style>
          <title>{}</title></head>\
