@@ -17,15 +17,14 @@ struct DirEntry {
 impl DirEntry {
 	fn new(entry: std::fs::DirEntry, dir: &Directory, base: &Path) -> Option<Self> {
 		if let Ok(metadata) = entry.metadata() {
-			return match entry.path().strip_prefix(&dir.path) {
-				Ok(p) => Some(DirEntry {
+			if let Ok(p) = entry.path().strip_prefix(&dir.path) {
+				return Some(DirEntry {
 					name: escape_html_entity(&entry.file_name().to_string_lossy()).to_string(),
 					url: utf8_percent_encode(&base.join(p).to_string_lossy(), CONTROLS).to_string(),
 					dt: metadata.modified().unwrap().into(),
 					len: metadata.len(),
 					is_dir: metadata.is_dir(),
-				}),
-				_ => None,
+				})
 			};
 		}
 		None
@@ -47,11 +46,20 @@ pub fn directory_listing(dir: &Directory, req: &HttpRequest) -> Result<ServiceRe
 
 	entries.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
 
+	if dir.path != dir.base {
+		let p = base.parent().unwrap_or(Path::new(""));
+		let _ = write!(
+			body,
+			"<li><a href=\"{}\">../</a></li>",
+			utf8_percent_encode(&p.to_string_lossy(), CONTROLS)
+		);
+	}
+
 	for entry in entries {
 		if entry.is_dir {
 			let _ = write!(
 				body,
-				"<li><a href=\"{}\">{}/</a></li>",
+				"<li><span><a href=\"{}\">{}/</a></span></li>",
 				entry.url, entry.name
 			);
 		} else {
