@@ -56,13 +56,10 @@ where
 	}
 
 	fn call(&mut self, req: ServiceRequest) -> Self::Future {
-		if let Some(token) = req.headers().get("token") {
-			if let Ok(token) = token.to_str() {
-				let config = req.app_data::<Data<Config>>();
-				if let Some(config) = config {
-					if token == config.token {
-						return Either::Left(self.service.call(req));
-					}
+		if let Some(token) = req.headers().get("token").and_then(|token| token.to_str().ok()) {
+			if let Some(config) = req.app_data::<Data<Config>>() {
+				if token == config.token {
+					return Either::Left(self.service.call(req));
 				}
 			}
 		}

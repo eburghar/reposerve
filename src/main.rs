@@ -167,7 +167,7 @@ async fn webhooks(
 #[actix_web::main]
 async fn serve(config: Config) -> std::io::Result<()> {
 	let addr_port = "0.0.0.0:8080";
-	std::env::set_var("RUST_LOG", "reposerve=info,actix_web=info");
+	env_logger::Env::default().default_filter_or("reposerve=info,actix_web=info");
 	env_logger::init();
 	info!("listening on {}", addr_port);
 	HttpServer::new(move || {
