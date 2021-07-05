@@ -4,10 +4,19 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::path::PathBuf;
 
+/// Configuration of reposerve
 #[derive(Deserialize, Clone)]
 pub struct Config {
+	/// root dir of the repository
 	pub dir: PathBuf,
+	/// token for uploading packages
 	pub token: String,
+	/// use tls
+	pub tls: bool,
+	/// certificate chain
+	pub crt: PathBuf,
+	/// key
+	pub key: PathBuf,
 	pub webhooks: BTreeMap<String, String>,
 }
 

@@ -8,17 +8,23 @@ use crate::{args::Opts, auth::TokenAuth, config::Config, directory::directory_li
 use actix_files::Files;
 use actix_multipart::Multipart;
 use actix_web::{middleware::Logger, post, web, App, Error, HttpResponse, HttpServer};
+use anyhow::Context;
 use bytes::{BufMut, BytesMut};
 use futures::{StreamExt, TryStreamExt};
-use log::info;
+use rustls::{
+	internal::pemfile::{certs, pkcs8_private_keys},
+	NoClientAuth, ServerConfig,
+};
 use sanitize_filename::sanitize;
 use std::{
+	env,
 	fs::{self, File},
-	io::Write,
+	io::{BufReader, Write},
 	process::Command,
 };
 use tempdir::TempDir;
 
+/// Represents an alpine repository
 #[derive(Debug)]
 struct ApkInfo {
 	version: String,
@@ -29,9 +35,9 @@ struct ApkInfo {
 impl ApkInfo {
 	pub fn new() -> Self {
 		ApkInfo {
-			version: "edge".to_string(),
-			repo: "main".to_string(),
-			arch: "x86_64".to_string(),
+			version: "edge".to_owned(),
+			repo: "main".to_owned(),
+			arch: "x86_64".to_owned(),
 		}
 	}
 
@@ -45,6 +51,7 @@ impl ApkInfo {
 	}
 }
 
+/// upload new archives
 #[post("/upload", wrap = "TokenAuth")]
 async fn save_file(
 	mut payload: Multipart,
@@ -63,7 +70,7 @@ async fn save_file(
 					if let Some(filename) = content_type.get_filename() {
 						let sane_file = sanitize(&filename);
 						let filepath = temp_dir.path().join(&sane_file);
-						info!("saving {}", filepath.display());
+						log::info!("saving {}", filepath.display());
 						files.push(sane_file);
 
 						// File::create is blocking operation, use threadpool
@@ -130,7 +137,7 @@ async fn save_file(
 		.args(&apk_args)
 		.output();
 	if let Ok(output) = cmd {
-		info!("{}", std::str::from_utf8(&output.stdout).unwrap_or(""));
+		log::info!("{}", std::str::from_utf8(&output.stdout).unwrap_or(""));
 	}
 
 	// call abuild-sign to sign generated index
@@ -139,7 +146,7 @@ async fn save_file(
 		.args(&["APKINDEX.tar.gz"])
 		.output();
 	if let Ok(output) = cmd {
-		info!("{}", std::str::from_utf8(&output.stdout).unwrap_or(""));
+		log::info!("{}", std::str::from_utf8(&output.stdout).unwrap_or(""));
 	}
 	Ok(HttpResponse::Ok().into())
 }
@@ -164,13 +171,14 @@ async fn webhooks(
 	}
 }
 
-#[actix_web::main]
-async fn serve(config: Config) -> std::io::Result<()> {
-	let addr_port = "0.0.0.0:8080";
-	env_logger::Env::default().default_filter_or("reposerve=info,actix_web=info");
-	env_logger::init();
-	info!("listening on {}", addr_port);
-	HttpServer::new(move || {
+async fn serve(config: Config, addr: String) -> anyhow::Result<()> {
+	// copy some values before config is moved
+	let tls = config.tls;
+	let crt = config.crt.clone();
+	let key = config.key.clone();
+
+	// build the server
+	let server = HttpServer::new(move || {
 		App::new()
 			.wrap(Logger::default())
 			.data(config.clone())
@@ -181,16 +189,57 @@ async fn serve(config: Config) -> std::io::Result<()> {
 					.show_files_listing()
 					.files_listing_renderer(directory_listing),
 			)
-	})
-	.bind(addr_port)?
-	.run()
-	.await
+	});
+
+	// bind to http or https
+	let server = if tls {
+		// Create tls config
+		let mut tls_config = ServerConfig::new(NoClientAuth::new());
+		// Read key and certificate
+		let crt = &mut BufReader::new(File::open(crt)?);
+		let key = &mut BufReader::new(File::open(key)?);
+		// Parse the certificate and set it in the configuration
+		let crt_chain = certs(crt).map_err(|_| anyhow::Error::msg("error reading certificate"))?;
+		let mut keys =
+			pkcs8_private_keys(key).map_err(|_| anyhow::Error::msg("error reading key"))?;
+		tls_config
+			.set_single_cert(crt_chain, keys.remove(0))
+			.with_context(|| "error setting crt/key pair")?;
+		server
+			.bind_rustls(&addr, tls_config)
+			.with_context(|| format!("unable to bind to https://{}", &addr))?
+			.run()
+	} else {
+		server
+			.bind(&addr)
+			.with_context(|| format!("unable to bind to http://{}", &addr))?
+			.run()
+	};
+
+	log::info!(
+		"listening on http{}://{}",
+		if tls { "s" } else { "" },
+		&addr
+	);
+	server.await?;
+	Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
+	// setup logging
+	env_logger::Builder::new()
+		.parse_filters(
+			&env::var("RUST_LOG".to_owned()).unwrap_or("reposerve=info,actix_web=info".to_owned()),
+		)
+		.init();
+
+	// read command line options
 	let opts: Opts = argh::from_env();
 	// read yaml config
 	let config = Config::read(&opts.config)?;
-	serve(config).unwrap();
+
+	// start actix main loop
+	let mut system = actix_web::rt::System::new("main");
+	system.block_on::<_, anyhow::Result<()>>(serve(config.clone(), opts.addr.clone()))?;
 	Ok(())
 }
