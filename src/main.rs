@@ -196,8 +196,12 @@ async fn serve(config: Config, addr: String) -> anyhow::Result<()> {
 		// Create tls config
 		let mut tls_config = ServerConfig::new(NoClientAuth::new());
 		// Read key and certificate
-		let crt = &mut BufReader::new(File::open(crt)?);
-		let key = &mut BufReader::new(File::open(key)?);
+		let crt = &mut BufReader::new(
+			File::open(&crt).with_context(|| format!("unable to read {:?}", &crt))?,
+		);
+		let key = &mut BufReader::new(
+			File::open(&key).with_context(|| format!("unable to read {:?}", &key))?,
+		);
 		// Parse the certificate and set it in the configuration
 		let crt_chain = certs(crt).map_err(|_| anyhow::Error::msg("error reading certificate"))?;
 		let mut keys =
