@@ -17,6 +17,7 @@ pub struct Config {
 	pub crt: PathBuf,
 	/// key
 	pub key: PathBuf,
+	/// webhooks configuration
 	pub webhooks: BTreeMap<String, String>,
 }
 

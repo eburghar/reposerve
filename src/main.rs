@@ -185,7 +185,7 @@ async fn serve(config: Config, addr: String) -> anyhow::Result<()> {
 			.service(webhooks)
 			.service(save_file)
 			.service(
-				Files::new("/", ".")
+				Files::new("/", &config.dir)
 					.show_files_listing()
 					.files_listing_renderer(directory_listing),
 			)
