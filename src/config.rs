@@ -10,15 +10,19 @@ pub struct Config {
 	/// root dir of the repository
 	pub dir: PathBuf,
 	/// token for uploading packages
-	pub token: String,
+	// pub token: String,
 	/// use tls
 	pub tls: bool,
 	/// certificate chain
-	pub crt: PathBuf,
+	pub crt: Option<PathBuf>,
 	/// key
-	pub key: PathBuf,
+	pub key: Option<PathBuf>,
 	/// webhooks configuration
 	pub webhooks: BTreeMap<String, String>,
+	/// jwks endpoint
+	pub jwks: String,
+	/// claims
+	pub claims: BTreeMap<String, String>
 }
 
 impl Config {
