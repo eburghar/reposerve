@@ -28,5 +28,5 @@ v_htmlescape = "0.10.4"
 actix-token-middleware = "0.1"
 
 [patch.crates-io]
-actix_token_middleware = { git = "https://github.com/eburghar/actix-token-middleware.git", branch = "master" }
+actix-token-middleware = { git = "https://github.com/eburghar/actix-token-middleware.git", branch = "master" }
 # actix-token-middleware = { path = "../actix-token-middleware" }
