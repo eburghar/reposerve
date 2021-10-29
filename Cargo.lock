@@ -240,6 +240,7 @@ dependencies = [
 [[package]]
 name = "actix-token-middleware"
 version = "0.1.0"
+source = "git+https://github.com/eburghar/actix-token-middleware.git?branch=master#54462d0cf9da3750c3c63be34a79670cd8dec39e"
 dependencies = [
  "actix-service",
  "actix-web",

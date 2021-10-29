@@ -1,4 +1,5 @@
-use argh::FromArgs;
+use argh::{FromArgs, TopLevelCommand};
+use std::path::Path;
 
 #[derive(FromArgs)]
 /// Extract latest projects archives from a gitlab server
@@ -14,4 +15,29 @@ pub struct Opts {
 	/// addr:port to bind to
 	#[argh(option, short = 'a', default="\"0.0.0.0:8080\".to_owned()")]
 	pub addr: String,
+}
+
+fn cmd<'a>(default: &'a String, path: &'a String) -> &'a str {
+	Path::new(path)
+		.file_name()
+		.map(|s| s.to_str())
+		.flatten()
+		.unwrap_or(default.as_str())
+}
+
+/// copy of argh::from_env to insert command name and version
+pub fn from_env<T: TopLevelCommand>() -> T {
+	const NAME: &'static str = env!("CARGO_BIN_NAME");
+	const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+	let strings: Vec<String> = std::env::args().collect();
+	let cmd = cmd(&strings[0], &strings[0]);
+	let strs: Vec<&str> = strings.iter().map(|s| s.as_str()).collect();
+	T::from_args(&[cmd], &strs[1..]).unwrap_or_else(|early_exit| {
+		println!("{} {}\n", NAME, VERSION);
+		println!("{}", early_exit.output);
+		std::process::exit(match early_exit.status {
+			Ok(()) => 0,
+			Err(()) => 1,
+		})
+	})
 }

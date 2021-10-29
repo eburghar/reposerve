@@ -183,7 +183,9 @@ async fn serve(config: Config, addr: String) -> anyhow::Result<()> {
 	let claims = config.claims.clone();
 
 	// get jwks
-	let jwks = Jwks::get(&config.jwks).await.unwrap();
+	let jwks = Jwks::get(&config.jwks)
+		.await
+		.map_err(|e| anyhow!("failed to get the JWKS: {}", e))?;
 	// extract claims from config
 	let claims = Claims::new(claims);
 
@@ -262,7 +264,7 @@ fn main() -> anyhow::Result<()> {
 		.init();
 
 	// read command line options
-	let opts: Opts = argh::from_env();
+	let opts: Opts = args::from_env();
 	// read yaml config
 	let config = Config::read(&opts.config)?;
 
