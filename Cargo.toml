@@ -1,6 +1,6 @@
 [package]
 name = "reposerve"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["Éric BURGHARD <eric.burghard@itsufficient.me>"]
 edition = "2018"
 
@@ -23,8 +23,10 @@ serde_yaml = "0.8.13"
 size_format = "1.0.2"
 tempdir = "0.3.7"
 v_htmlescape = "0.10.4"
-actix-token-middleware = "0.1"
+actix-token-middleware = "0.2.0"
 
 [patch.crates-io]
 actix-token-middleware = { git = "https://github.com/eburghar/actix-token-middleware.git", branch = "master" }
 # actix-token-middleware = { path = "../actix-token-middleware" }
+serde-vecmap = { git = "https://github.com/eburghar/serde-vecmap.git", branch = "master" }
+#serde-vecmap = { path = "../serde-vecmap" }

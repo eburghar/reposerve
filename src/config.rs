@@ -1,8 +1,18 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::fs::File;
 use std::path::PathBuf;
+use actix_token_middleware::data::Jwt;
+
+#[derive(Deserialize, Clone)]
+/// Tls configuration
+pub struct Tls {
+	/// crt path
+	pub crt: PathBuf,
+	/// key path
+	pub key: PathBuf,
+}
 
 /// Configuration of reposerve
 #[derive(Deserialize, Clone)]
@@ -10,17 +20,11 @@ pub struct Config {
 	/// root dir of the repository
 	pub dir: PathBuf,
 	/// use tls
-	pub tls: bool,
-	/// certificate chain
-	pub crt: Option<PathBuf>,
-	/// key
-	pub key: Option<PathBuf>,
+	pub tls: Option<Tls>,
 	/// webhooks configuration
-	pub webhooks: BTreeMap<String, String>,
-	/// jwks endpoint
-	pub jwks: String,
-	/// claims
-	pub claims: BTreeMap<String, String>
+	pub webhooks: Option<HashMap<String, String>>,
+	/// jwt configuration
+	pub jwt: Option<Jwt>,
 }
 
 impl Config {

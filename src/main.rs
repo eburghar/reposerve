@@ -4,14 +4,10 @@ mod directory;
 
 use crate::{args::Opts, config::Config, directory::directory_listing};
 
-// use actix_token_middleware::tokenauth::{Token, TokenAuth};
 use actix_files::Files;
 use actix_multipart::Multipart;
-use actix_token_middleware::{
-	jwt::{Claims, Jwks},
-	jwtauth::JwtAuth,
-};
-use actix_web::{middleware::Logger, post, web, App, Error, HttpResponse, HttpServer};
+use actix_token_middleware::middleware::jwtauth::JwtAuth;
+use actix_web::{middleware::Logger, web, App, Error, HttpResponse, HttpServer};
 use anyhow::{anyhow, Context};
 use bytes::{BufMut, BytesMut};
 use futures::{StreamExt, TryStreamExt};
@@ -56,7 +52,7 @@ impl ApkInfo {
 }
 
 /// upload new archives
-#[post("/upload", wrap = "JwtAuth")]
+//#[post("/upload", wrap = "JwtAuth")]
 async fn save_file(
 	mut payload: Multipart,
 	config: web::Data<Config>,
@@ -155,79 +151,84 @@ async fn save_file(
 	Ok(HttpResponse::Ok().into())
 }
 
-#[post("/webhook/{webhook}", wrap = "JwtAuth")]
+//#[post("/webhook/{webhook}", wrap = "JwtAuth")]
 async fn webhooks(
 	web::Path(webhook): web::Path<String>,
 	config: web::Data<Config>,
 ) -> HttpResponse {
-	match config.webhooks.get(webhook.as_str()) {
-		Some(script) => match Command::new(script).output() {
-			Ok(output) => HttpResponse::Ok().body(format!(
-				"{} executed with success: {}",
-				script,
-				std::str::from_utf8(&output.stdout).unwrap_or("")
-			)),
-			Err(error) => {
-				HttpResponse::NotFound().body(format!("failed to execute {}: {}", script, error))
-			}
-		},
-		_ => HttpResponse::NotFound().body("Not found"),
+	if let Some(ref webhooks) = config.webhooks {
+		match webhooks.get(webhook.as_str()) {
+			Some(script) => match Command::new(script).output() {
+				Ok(output) => HttpResponse::Ok().body(format!(
+					"{} executed with success: {}",
+					script,
+					std::str::from_utf8(&output.stdout).unwrap_or("")
+				)),
+				Err(error) => HttpResponse::NotFound()
+					.body(format!("failed to execute {}: {}", script, error)),
+			},
+			_ => HttpResponse::NotFound().body("Not found"),
+		}
+	} else {
+		panic!("webhooks not configured !");
 	}
 }
 
-async fn serve(config: Config, addr: String) -> anyhow::Result<()> {
+async fn serve(mut config: Config, addr: String) -> anyhow::Result<()> {
+	// set keys from jwks endpoint
+	if let Some(ref mut jwt) = config.jwt {
+		let _ = jwt
+			.set_keys()
+			.await
+			.map_err(|e| anyhow!("failed to get jkws keys {}", e))?;
+	}
 	// copy some values before config is moved
-	let tls = config.tls;
-	let crt = config.crt.clone();
-	let key = config.key.clone();
-	let claims = config.claims.clone();
-
-	// get jwks
-	let jwks = Jwks::get(&config.jwks)
-		.await
-		.map_err(|e| anyhow!("failed to get the JWKS: {}", e))?;
-	// extract claims from config
-	let claims = Claims::new(claims);
+	let tls = config.tls.clone();
 
 	// build the server
 	let server = HttpServer::new(move || {
-		App::new()
-			.wrap(Logger::default())
-			.data(config.clone())
-			.data(jwks.clone())
-			.data(claims.clone())
-			.service(webhooks)
-			.service(save_file)
-			.service(
-				Files::new("/", &config.dir)
-					.show_files_listing()
-					.files_listing_renderer(directory_listing),
-			)
+		let mut app = App::new().wrap(Logger::default()).data(config.clone());
+		if let Some(ref jwt) = config.jwt {
+			//.service(webhooks)
+			app = app
+				.service(
+					web::resource("/webhook/{webhook}")
+						.wrap(JwtAuth::new(jwt.clone()))
+						.route(web::post().to(webhooks)),
+				)
+				//.service(save_file)
+				.service(
+					web::resource("/upload")
+						.wrap(JwtAuth::new(jwt.clone()))
+						.route(web::post().to(save_file)),
+				)
+		}
+		app.service(
+			Files::new("/", &config.dir)
+				.show_files_listing()
+				.files_listing_renderer(directory_listing),
+		)
 	});
 
 	// bind to http or https
-	let server = if tls {
-		// get key and crt
-		let crt = crt.ok_or_else(|| anyhow!("missing crt path in config"))?;
-		let key = key.ok_or_else(|| anyhow!("missing key path in config"))?;
-
+	let server = if let Some(ref tls) = tls {
 		// Create tls config
 		let mut tls_config = ServerConfig::new(NoClientAuth::new());
 
 		// Parse the certificate and set it in the configuration
 		let crt_chain = certs(&mut BufReader::new(
-			File::open(&crt).with_context(|| format!("unable to read {:?}", &crt))?,
+			File::open(&tls.crt).with_context(|| format!("unable to read {:?}", &tls.crt))?,
 		))
 		.map_err(|_| anyhow!("error reading certificate"))?;
 
 		// Parse the key in RSA or PKCS8 format
-		let invalid_key = |_| anyhow!("invalid key in {:?}", &key);
-		let no_key = || anyhow!("no key found in {:?}", &key);
-		let mut keys = rsa_private_keys(&mut BufReader::new(File::open(&key)?))
+		let invalid_key = |_| anyhow!("invalid key in {:?}", &tls.key);
+		let no_key = || anyhow!("no key found in {:?}", &tls.key);
+		let mut keys = rsa_private_keys(&mut BufReader::new(File::open(&tls.key)?))
 			.map_err(invalid_key)
 			.and_then(|x| (!x.is_empty()).then(|| x).ok_or(no_key()))
 			.or_else(|_| {
-				pkcs8_private_keys(&mut BufReader::new(File::open(&key)?))
+				pkcs8_private_keys(&mut BufReader::new(File::open(&tls.key)?))
 					.map_err(invalid_key)
 					.and_then(|x| (!x.is_empty()).then(|| x).ok_or(no_key()))
 			})?;
@@ -248,7 +249,7 @@ async fn serve(config: Config, addr: String) -> anyhow::Result<()> {
 
 	log::info!(
 		"listening on http{}://{}",
-		if tls { "s" } else { "" },
+		if tls.is_some() { "s" } else { "" },
 		&addr
 	);
 	server.await?;
