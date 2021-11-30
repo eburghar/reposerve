@@ -1,16 +1,24 @@
-# reposerve
+Simple alpine linux packages server you can use to consume and update your private packages in CI/CD pipelines.
+
+[TOC]
+
+# Presentation
 
 reposerve is a simple [alpine linux](https://alpinelinux.org/) packages http server you can use to consume and update
-your private packages in CI/CD pipelines. Written in async rust, it acts as a simple static file server
-with an API protected by a JWT Token to easily upload new file. You can define arbitrary webhooks to launch
-predefined action (like signing index).
+your private packages in CI/CD pipelines. Written in async rust, it acts as a simple static file server with an API
+protected by a JWT Token to easily upload new packages.
+
+You can define arbitrary webhooks accessible at `/webhook/webhook_name` to lauch predefined scripts (force a sign of all
+packages for example).
 
 ![reposerve](reposerve.png?raw=true "Reposerve")
 
 ## Usage
 
 ```
-Usage: reposerve -c <config> [-v]
+reposerve 0.4.2
+
+Usage: reposerve [-c <config>] [-v] [-a <addr>]
 
 Extract latest projects archives from a gitlab server
 
@@ -18,8 +26,8 @@ Options:
   -c, --config      configuration file containing projects and gitlab connection
                     parameters
   -v, --verbose     more detailed output
+  -a, --addr        addr:port to bind to
   --help            display usage information
-
 ```
 
 ## Uploading files
@@ -56,14 +64,21 @@ After upload, the index is automatically reconstructed and signed by reposerve (
 
 # Configuration
 
-You need to give the url to retrieve the public keys (Only JWKS is supported) that signed the JWT Tokens and a map
-of claims with their expected values the token must comply with to be allowed to upload files to the repository.
+A `jwt` configuration has to be provided in the configuration for the `/upload` API point to be activated. You
+need to give the url to retrieve the public keys (`jwks`) that sign the JWT Tokens and a map of claims with their
+expected values the token must comply with, to be allowed to upload files to the repository.
 
 ```yaml
 dir: /home/packager/packages
-jwks: https://gitlab.com/-/jwks
-claims:
-  iss: gitlab.com
+tls:
+  crt: /var/run/secrets/reposerve/tls.crt
+  key: /var/run/secrets/reposerve/tls.key
+jwt:
+  jwks: https://gitlab.com/-/jwks
+  claims:
+    iss: gitlab.com
 webhooks:
   sign: /usr/bin/apk_sign.sh
 ```
+
+`tls`, `jwt` and `webhooks` are all optional.
