@@ -13,10 +13,10 @@ packages for example).
 
 ![reposerve](reposerve.png?raw=true "Reposerve")
 
-## Usage
+# Usage
 
 ```
-reposerve 0.4.2
+reposerve 0.4.3
 
 Usage: reposerve [-c <config>] [-v] [-a <addr>]
 
@@ -30,7 +30,7 @@ Options:
   --help            display usage information
 ```
 
-## Uploading files
+# Uploading files
 
 Uploading packages is easy and can be done with curl. You just have to get a JWT token. `version` is the alpine version
 (edge), `repo` is the repository name (main) and `arch` (x86_64) are all optional. You can submit multiple apk

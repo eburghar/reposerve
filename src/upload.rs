@@ -119,21 +119,23 @@ pub(crate) async fn upload(
 			}
 		}
 	}
-	let cmd = Command::new("apk")
+	let cmd = Command::new("/sbin/apk")
 		.current_dir(&root)
 		.args(&apk_args)
 		.output();
-	if let Ok(output) = cmd {
-		log::info!("{}", std::str::from_utf8(&output.stdout).unwrap_or(""));
+	match cmd {
+    	Ok(output) => log::info!("apk: {}", std::str::from_utf8(&output.stdout).unwrap_or("")),
+    	Err(e) => log::error!("Error when running apk: {:?}", e)
 	}
 
 	// call abuild-sign to sign generated index
-	let cmd = Command::new("abuild-sign")
+	let cmd = Command::new("/usr/bin/abuild-sign")
 		.current_dir(&root)
 		.args(&["APKINDEX.tar.gz"])
 		.output();
-	if let Ok(output) = cmd {
-		log::info!("{}", std::str::from_utf8(&output.stdout).unwrap_or(""));
+	match cmd {
+		Ok(output) => log::info!("abuild-sign: {}", std::str::from_utf8(&output.stdout).unwrap_or("")),
+    	Err(e) => log::error!("Error when running abuild-sign: {:?}", e)
 	}
 	Ok(HttpResponse::Ok().into())
 }
