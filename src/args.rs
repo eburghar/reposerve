@@ -17,18 +17,18 @@ pub struct Opts {
 	pub addr: String,
 }
 
-fn cmd<'a>(default: &'a String, path: &'a String) -> &'a str {
+fn cmd<'a>(default: &'a str, path: &'a str) -> &'a str {
 	Path::new(path)
 		.file_name()
 		.map(|s| s.to_str())
 		.flatten()
-		.unwrap_or(default.as_str())
+		.unwrap_or(default)
 }
 
 /// copy of argh::from_env to insert command name and version
 pub fn from_env<T: TopLevelCommand>() -> T {
-	const NAME: &'static str = env!("CARGO_BIN_NAME");
-	const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+	const NAME: &str = env!("CARGO_BIN_NAME");
+	const VERSION: &str = env!("CARGO_PKG_VERSION");
 	let strings: Vec<String> = std::env::args().collect();
 	let cmd = cmd(&strings[0], &strings[0]);
 	let strs: Vec<&str> = strings.iter().map(|s| s.as_str()).collect();

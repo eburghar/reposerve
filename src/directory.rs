@@ -39,7 +39,7 @@ pub fn directory_listing(dir: &Directory, req: &HttpRequest) -> Result<ServiceRe
 	let mut entries: Vec<DirEntry> = dir
 		.path
 		.read_dir()?
-		.filter(|e| dir.is_visible(&e))
+		.filter(|e| dir.is_visible(e))
 		.filter_map(Result::ok)
 		.filter_map(|e| DirEntry::new(e, dir, base))
 		.collect();
@@ -47,7 +47,7 @@ pub fn directory_listing(dir: &Directory, req: &HttpRequest) -> Result<ServiceRe
 	entries.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then(a.name.cmp(&b.name)));
 
 	if dir.path != dir.base {
-		let p = base.parent().unwrap_or(Path::new(""));
+		let p = base.parent().unwrap_or_else(|| Path::new(""));
 		let _ = write!(
 			body,
 			"<li><a href=\"{}\">../</a></li>",
