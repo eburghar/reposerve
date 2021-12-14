@@ -1,9 +1,9 @@
+use actix_token_middleware::data::Jwt;
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::PathBuf;
-use actix_token_middleware::data::Jwt;
 
 #[derive(Deserialize, Clone)]
 /// Tls configuration

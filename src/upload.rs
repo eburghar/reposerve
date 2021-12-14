@@ -124,8 +124,8 @@ pub(crate) async fn upload(
 		.args(&apk_args)
 		.output();
 	match cmd {
-    	Ok(output) => log::info!("apk: {}", std::str::from_utf8(&output.stdout).unwrap_or("")),
-    	Err(e) => log::error!("Error when running apk: {:?}", e)
+		Ok(output) => log::info!("apk: {}", std::str::from_utf8(&output.stdout).unwrap_or("")),
+		Err(e) => log::error!("Error when running apk: {:?}", e),
 	}
 
 	// call abuild-sign to sign generated index
@@ -134,8 +134,11 @@ pub(crate) async fn upload(
 		.args(&["APKINDEX.tar.gz"])
 		.output();
 	match cmd {
-		Ok(output) => log::info!("abuild-sign: {}", std::str::from_utf8(&output.stdout).unwrap_or("")),
-    	Err(e) => log::error!("Error when running abuild-sign: {:?}", e)
+		Ok(output) => log::info!(
+			"abuild-sign: {}",
+			std::str::from_utf8(&output.stdout).unwrap_or("")
+		),
+		Err(e) => log::error!("Error when running abuild-sign: {:?}", e),
 	}
 	Ok(HttpResponse::Ok().into())
 }

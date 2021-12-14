@@ -24,7 +24,7 @@ impl DirEntry {
 					dt: metadata.modified().unwrap().into(),
 					len: metadata.len(),
 					is_dir: metadata.is_dir(),
-				})
+				});
 			};
 		}
 		None
