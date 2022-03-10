@@ -99,15 +99,17 @@ async fn serve(mut config: Config, addr: String) -> anyhow::Result<()> {
 }
 
 fn main() -> anyhow::Result<()> {
+	// read command line options
+	let opts: Opts = args::from_env();
+
 	// setup logging
 	env_logger::init_from_env(
 		env_logger::Env::new()
 			.default_filter_or("reposerve=info,actix_web=info")
 			.default_write_style_or("auto"),
 	);
+	log::info!("{} v{}", env!("CARGO_BIN_NAME"), env!("CARGO_PKG_VERSION"));
 
-	// read command line options
-	let opts: Opts = args::from_env();
 	// read yaml config
 	let config = Config::read(&opts.config)?;
 
