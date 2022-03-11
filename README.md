@@ -24,15 +24,15 @@ CI/CD pipelines.
 ```
 reposerve 0.4.7
 
-Usage: reposerve [-c <config>] [-d <dev>] [-v] [-a <addr>]
+Usage: reposerve [-c <config>] [-d] [-v] [-a <addr>]
 
 Simple Alpine Linux packages server
 
 Options:
-  -c, --config      configuration file
-  -d, --dev         dev mode (enable /webhook and /upload without jwt)
-  -v, --verbose     more detailed output
-  -a, --addr        addr:port to bind to
+  -c, --config      configuration file (/etc/reposerve.yaml)
+  -d, --dev         dev mode: enable /webhook and /upload without jwt (false)
+  -v, --verbose     more detailed output (false)
+  -a, --addr        addr:port to bind to (0.0.0.0:8080)
   --help            display usage information
 ```
 
@@ -72,10 +72,10 @@ reposerve (no need to define extra webhook).
 # Configuration
 
 A `jwt` configuration has to be provided in the configuration for the `/upload`
-and `/webhooks` unless the dev mode is activated. API point to be protected. You
-need to give the url to retrieve the public keys (`jwks`) that sign the JWT
-Tokens and a map of claims with their expected values the token must comply
-with, to be allowed to upload files to the repository.
+and `/webhooks` unless the dev mode is activated. You need to give the url to
+retrieve the public keys (`jwks`) that sign the JWT Tokens and a map of claims
+with their expected values the token must comply with, to be allowed to upload
+files to the repository.
 
 ```yaml
 dir: /home/packager/packages

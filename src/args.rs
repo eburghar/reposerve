@@ -4,19 +4,19 @@ use std::path::Path;
 #[derive(FromArgs)]
 /// Simple Alpine Linux packages server
 pub struct Opts {
-	/// configuration file
+	/// configuration file (/etc/reposerve.yaml)
 	#[argh(option, short = 'c', default = "\"/etc/reposerve.yaml\".to_owned()")]
 	pub config: String,
 
-	/// dev mode (enable /webhook and /upload without jwt)
+	/// dev mode: enable /webhook and /upload without jwt (false)
 	#[argh(switch, short = 'd')]
 	pub dev: bool,
 
-	/// more detailed output
+	/// more detailed output (false)
 	#[argh(switch, short = 'v')]
 	pub verbose: bool,
 
-	/// addr:port to bind to
+	/// addr:port to bind to (0.0.0.0:8080)
 	#[argh(option, short = 'a', default = "\"0.0.0.0:8080\".to_owned()")]
 	pub addr: String,
 }
