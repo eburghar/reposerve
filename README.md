@@ -20,15 +20,14 @@ I integrated alpine packages in the fabric of container images with CI/CD pipeli
 # Usage
 
 ```
-reposerve 0.4.3
+reposerve 0.4.6
 
 Usage: reposerve [-c <config>] [-v] [-a <addr>]
 
-Extract latest projects archives from a gitlab server
+Simple Alpine Linux packages server
 
 Options:
-  -c, --config      configuration file containing projects and gitlab connection
-                    parameters
+  -c, --config      configuration file
   -v, --verbose     more detailed output
   -a, --addr        addr:port to bind to
   --help            display usage information

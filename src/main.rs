@@ -25,6 +25,8 @@ async fn serve(mut config: Config, addr: String) -> anyhow::Result<()> {
 			.set_keys()
 			.await
 			.map_err(|e| anyhow!("failed to get jkws keys {}", e))?;
+	} else {
+		log::warn!("no JWT configuration found to protect /webhook and /upload. Use only for development");
 	}
 	// copy some values before config is moved
 	let tls = config.tls.clone();
@@ -32,6 +34,7 @@ async fn serve(mut config: Config, addr: String) -> anyhow::Result<()> {
 	// build the server
 	let server = HttpServer::new(move || {
 		let mut app = App::new().wrap(Logger::default()).data(config.clone());
+		// wrap /webhook and /upload if jwt is set
 		if let Some(ref jwt) = config.jwt {
 			app = app
 				.service(
@@ -42,6 +45,17 @@ async fn serve(mut config: Config, addr: String) -> anyhow::Result<()> {
 				.service(
 					web::resource("/upload")
 						.wrap(JwtAuth::new(jwt.clone()))
+						.route(web::post().to(upload)),
+				)
+		// else dev mode !
+		} else {
+			app = app
+				.service(
+					web::resource("/webhook/{webhook}")
+						.route(web::post().to(webhook)),
+				)
+				.service(
+					web::resource("/upload")
 						.route(web::post().to(upload)),
 				)
 		}
