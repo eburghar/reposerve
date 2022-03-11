@@ -8,6 +8,10 @@ pub struct Opts {
 	#[argh(option, short = 'c', default = "\"/etc/reposerve.yaml\".to_owned()")]
 	pub config: String,
 
+	/// dev mode (enable /webhook and /upload without jwt)
+	#[argh(switch, short = 'd')]
+	pub dev: bool,
+
 	/// more detailed output
 	#[argh(switch, short = 'v')]
 	pub verbose: bool,

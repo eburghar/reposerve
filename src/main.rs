@@ -18,14 +18,14 @@ use rustls::{
 };
 use std::{fs::File, io::BufReader};
 
-async fn serve(mut config: Config, addr: String) -> anyhow::Result<()> {
+async fn serve(mut config: Config, addr: String, dev: bool) -> anyhow::Result<()> {
 	// set keys from jwks endpoint
 	if let Some(ref mut jwt) = config.jwt {
 		let _ = jwt
 			.set_keys()
 			.await
 			.map_err(|e| anyhow!("failed to get jkws keys {}", e))?;
-	} else {
+	} else if dev {
 		log::warn!("no JWT configuration found to protect /webhook and /upload. Use only for development");
 	}
 	// copy some values before config is moved
@@ -48,7 +48,7 @@ async fn serve(mut config: Config, addr: String) -> anyhow::Result<()> {
 						.route(web::post().to(upload)),
 				)
 		// else dev mode !
-		} else {
+		} else if dev {
 			app = app
 				.service(
 					web::resource("/webhook/{webhook}")
@@ -129,6 +129,6 @@ fn main() -> anyhow::Result<()> {
 
 	// start actix main loop
 	let mut system = actix_web::rt::System::new("main");
-	system.block_on::<_, anyhow::Result<()>>(serve(config, opts.addr))?;
+	system.block_on::<_, anyhow::Result<()>>(serve(config, opts.addr, opts.dev))?;
 	Ok(())
 }
