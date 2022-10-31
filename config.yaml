@@ -1,7 +1,7 @@
 dir: /home/eric/.workspace/rust/reposerve/tmp
-jwks: https://git.itsufficient.me/-/jwks
-tls: false
-claims:
-  iss: git.itsufficient.me
+jwt:
+  jwks: https://git.itsufficient.me/-/jwks
+  claims:
+    iss: git.itsufficient.me
 webhooks:
   sign: /tmp/test.sh

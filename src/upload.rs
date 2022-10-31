@@ -1,8 +1,10 @@
 use crate::config::Config;
 
 use actix_multipart::Multipart;
-use actix_web::{web, Error, HttpResponse};
-use bytes::{BufMut, BytesMut};
+use actix_web::{
+	web::{self, BufMut, BytesMut},
+	Error, HttpResponse,
+};
 use futures::{StreamExt, TryStreamExt};
 use sanitize_filename::sanitize;
 use std::{
@@ -20,15 +22,17 @@ struct ApkInfo {
 	arch: String,
 }
 
-impl ApkInfo {
-	pub fn new() -> Self {
-		ApkInfo {
+impl Default for ApkInfo {
+	fn default() -> Self {
+		Self {
 			version: "edge".to_owned(),
 			repo: "main".to_owned(),
 			arch: "x86_64".to_owned(),
 		}
 	}
+}
 
+impl ApkInfo {
 	pub fn set(&mut self, f: &str, v: String) {
 		match f {
 			"version" => self.version = v,
@@ -47,41 +51,43 @@ pub(crate) async fn upload(
 	let temp_dir = TempDir::new("reposerve")?;
 
 	// iterate over multipart stream
-	let mut info = ApkInfo::new();
+	let mut info = ApkInfo::default();
 	let mut files = Vec::new();
 	while let Ok(Some(mut field)) = payload.try_next().await {
-		if let Some(content_type) = field.content_disposition() {
-			match content_type.get_name() {
-				// save files to tmp dir
-				Some("file") => {
-					if let Some(filename) = content_type.get_filename() {
-						let sane_file = sanitize(&filename);
-						let filepath = temp_dir.path().join(&sane_file);
-						log::info!("saving {}", filepath.display());
-						files.push(sane_file);
+		// handle named fields
+		match field.content_disposition().get_name() {
+			// save file to tmp dir
+			Some("file") => {
+				if let Some(filename) = field.content_disposition().get_filename() {
+					let sane_file = sanitize(&filename);
+					let filepath = temp_dir.path().join(&sane_file);
+					log::info!("saving {}", filepath.display());
+					files.push(sane_file);
 
-						// File::create is blocking operation, use threadpool
-						let mut f = web::block(|| File::create(filepath)).await.unwrap();
+					// File::create is blocking operation (TODO: use threadpool)
+					let mut f = web::block(|| File::create(filepath)).await??;
 
-						// Field in turn is stream of *Bytes* objectr
-						while let Some(chunk) = field.next().await {
-							let data = chunk.unwrap();
-							// filesystem operations are blocking, we have to use threadpool
-							f = web::block(move || f.write_all(&data).map(|_| f)).await?;
-						}
-					}
-				}
-				// get other parameters for moving the files
-				Some(f) if f == "version" || f == "repo" || f == "arch" => {
-					let mut data = BytesMut::with_capacity(32);
-					// Field in turn is stream of *Bytes* objectr
+					// File data is a stream of *Bytes*
 					while let Some(chunk) = field.next().await {
-						data.put(chunk.unwrap());
+						let data = chunk.unwrap();
+						// filesystem operations are blocking (TODO: to use a threadpool)
+						f = web::block(move || f.write_all(&data).map(|_| f)).await??;
 					}
-					info.set(f, std::str::from_utf8(&data).unwrap().to_string());
 				}
-				_ => (),
 			}
+			// get repo parameters (for moving the files to the right place)
+			Some(f) if f == "version" || f == "repo" || f == "arch" => {
+				let mut data = BytesMut::with_capacity(32);
+				// copy the field name before advancing to the next one
+				let field_name = f.to_owned();
+				// Field value is a stream of *Bytes*
+				while let Some(chunk) = field.next().await {
+					data.put(chunk.unwrap());
+				}
+				info.set(&field_name, std::str::from_utf8(&data).unwrap().to_string());
+			}
+			// ignore the rest
+			_ => (),
 		}
 	}
 
@@ -91,7 +97,7 @@ pub(crate) async fn upload(
 	root.push(sanitize(&info.arch));
 	fs::create_dir_all(&root)?;
 
-	// move files to correct destination when we have all the info
+	// move files to correct destinations when we have all the info
 	for file in files {
 		let src = temp_dir.path().join(&file);
 		let dst = root.join(&file);
