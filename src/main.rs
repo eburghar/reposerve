@@ -10,12 +10,14 @@ use crate::{
 
 use actix_files::Files;
 use actix_token_middleware::middleware::jwtauth::JwtAuth;
-use actix_web::{middleware::Logger, web, App, HttpServer};
-use anyhow::{anyhow, Context};
-use rustls::{
-	internal::pemfile::{certs, pkcs8_private_keys, rsa_private_keys},
-	NoClientAuth, ServerConfig,
+use actix_web::{
+	middleware::Logger,
+	web::{self, Data},
+	App, HttpServer,
 };
+use anyhow::{anyhow, Context};
+use rustls::{Certificate, PrivateKey, ServerConfig};
+use rustls_pemfile::{certs, pkcs8_private_keys, rsa_private_keys};
 use std::{fs::File, io::BufReader};
 
 async fn serve(mut config: Config, addr: String, dev: bool) -> anyhow::Result<()> {
@@ -26,14 +28,19 @@ async fn serve(mut config: Config, addr: String, dev: bool) -> anyhow::Result<()
 			.await
 			.map_err(|e| anyhow!("failed to get jkws keys {}", e))?;
 	} else if dev {
-		log::warn!("no JWT configuration found to protect /webhook and /upload. Use only for development");
+		log::warn!(
+			"no JWT configuration found to protect /webhook and /upload. Use only for development"
+		);
 	}
 	// copy some values before config is moved
 	let tls = config.tls.clone();
 
 	// build the server
 	let server = HttpServer::new(move || {
-		let mut app = App::new().wrap(Logger::default()).data(config.clone());
+		let mut app = App::new()
+			.wrap(Logger::default())
+			.app_data(Data::new(config.clone()));
+
 		// wrap /webhook and /upload if jwt is set
 		if let Some(ref jwt) = config.jwt {
 			app = app
@@ -50,14 +57,8 @@ async fn serve(mut config: Config, addr: String, dev: bool) -> anyhow::Result<()
 		// else dev mode !
 		} else if dev {
 			app = app
-				.service(
-					web::resource("/webhook/{webhook}")
-						.route(web::post().to(webhook)),
-				)
-				.service(
-					web::resource("/upload")
-						.route(web::post().to(upload)),
-				)
+				.service(web::resource("/webhook/{webhook}").route(web::post().to(webhook)))
+				.service(web::resource("/upload").route(web::post().to(upload)))
 		}
 		app.service(
 			Files::new("/", &config.dir)
@@ -69,27 +70,37 @@ async fn serve(mut config: Config, addr: String, dev: bool) -> anyhow::Result<()
 	// bind to http or https
 	let server = if let Some(ref tls) = tls {
 		// Create tls config
-		let mut tls_config = ServerConfig::new(NoClientAuth::new());
+		let config = ServerConfig::builder()
+			.with_safe_defaults()
+			.with_no_client_auth();
 
-		// Parse the certificate and set it in the configuration
 		let crt_chain = certs(&mut BufReader::new(
 			File::open(&tls.crt).with_context(|| format!("unable to read {:?}", &tls.crt))?,
 		))
-		.map_err(|_| anyhow!("error reading certificate"))?;
+		.map_err(|_| anyhow!("error reading certificate"))?
+		.into_iter()
+		.map(Certificate)
+		.collect();
 
 		// Parse the key in RSA or PKCS8 format
 		let invalid_key = |_| anyhow!("invalid key in {:?}", &tls.key);
 		let no_key = || anyhow!("no key found in {:?}", &tls.key);
-		let mut keys = rsa_private_keys(&mut BufReader::new(File::open(&tls.key)?))
-			.map_err(invalid_key)
-			.and_then(|x| (!x.is_empty()).then(|| x).ok_or_else(no_key))
-			.or_else(|_| {
-				pkcs8_private_keys(&mut BufReader::new(File::open(&tls.key)?))
-					.map_err(invalid_key)
-					.and_then(|x| (!x.is_empty()).then(|| x).ok_or_else(no_key))
-			})?;
-		tls_config
-			.set_single_cert(crt_chain, keys.remove(0))
+		let mut keys: Vec<PrivateKey> =
+			rsa_private_keys(&mut BufReader::new(File::open(&tls.key)?))
+				.map_err(invalid_key)
+				// return an error if there is no key
+				.and_then(|x| (!x.is_empty()).then(|| x).ok_or_else(no_key))
+				.or_else(|_| {
+					pkcs8_private_keys(&mut BufReader::new(File::open(&tls.key)?))
+						.map_err(invalid_key)
+						// return an error if there is no key
+						.and_then(|x| (!x.is_empty()).then(|| x).ok_or_else(no_key))
+				})?
+				.into_iter()
+				.map(PrivateKey)
+				.collect();
+		let tls_config = config
+			.with_single_cert(crt_chain, keys.swap_remove(0))
 			.with_context(|| "error setting crt/key pair")?;
 		server
 			.bind_rustls(&addr, tls_config)
@@ -128,7 +139,7 @@ fn main() -> anyhow::Result<()> {
 	let config = Config::read(&opts.config)?;
 
 	// start actix main loop
-	let mut system = actix_web::rt::System::new("main");
-	system.block_on::<_, anyhow::Result<()>>(serve(config, opts.addr, opts.dev))?;
+	let system = actix_web::rt::System::new();
+	system.block_on(serve(config, opts.addr, opts.dev))?;
 	Ok(())
 }

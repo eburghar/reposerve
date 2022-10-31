@@ -3,10 +3,7 @@ use crate::config::Config;
 use actix_web::{web, HttpResponse};
 use std::process::Command;
 
-pub(crate) async fn webhook(
-	web::Path(webhook): web::Path<String>,
-	config: web::Data<Config>,
-) -> HttpResponse {
+pub(crate) async fn webhook(webhook: web::Path<String>, config: web::Data<Config>) -> HttpResponse {
 	if let Some(ref webhooks) = config.webhooks {
 		match webhooks.get(webhook.as_str()) {
 			Some(script) => match Command::new(script).output() {
