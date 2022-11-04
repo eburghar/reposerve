@@ -1,11 +1,11 @@
-Simple alpine linux packages server you can use to consume and update your private packages in CI/
+Simple alpine Linux packages server you can use to consume and update your private packages in CI/
 CD pipelines.
 
 [TOC]
 
 # Presentation
 
-reposerve is a simple [alpine linux](https://alpinelinux.org/) packages http server you can use to
+`reposerve` is a simple [alpine Linux](https://alpinelinux.org/) packages HTTP server you can use to
 consume and update your private packages in CI/CD pipelines. Written in async rust, it acts as a
 simple static file server with an API protected by a JWT Token to easily upload new packages.
 
@@ -39,7 +39,7 @@ Uploading packages is easy and can be done with curl. You just have to get a JWT
 is the alpine version (edge), `repo` is the repository name (main) and `arch` (x86_64) are all
 optional. You can submit multiple apk file.
 
-This is for example a script that will upload all files to a reposerve service on $HOST under gitlab
+This is for example a script that will upload all files to a `reposerve` service on $HOST under GitLab
 (using the job JWT token).
 
 ```sh
@@ -63,13 +63,13 @@ for arch in "$(find $DIR -name APKINDEX.tar.gz)"; do
 done
 ```
 
-After an upload, the index is automatically reconstructed and signed by reposerve (no need to define
+After an upload, the index is automatically reconstructed and signed by `reposerve` (no need to define
 extra webhook).
 
 # Configuration
 
 A `jwt` configuration has to be provided in the configuration for the `/upload` and `/webhooks`
-unless the dev mode is activated. You need to give the url to retrieve the public keys (`jwks`) that
+unless the dev mode is activated. You need to give the URL to retrieve the public keys (`jwks`) that
 sign the JWT Tokens and a map of claims with their expected values the token must comply with, to be
 allowed to upload files to the repository.
 
