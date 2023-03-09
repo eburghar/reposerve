@@ -1,4 +1,7 @@
 dir: /home/eric/.workspace/rust/reposerve/tmp
+tls:
+  crt: tls.crt
+  key: tls.key
 jwt:
   jwks: https://git.itsufficient.me/-/jwks
   claims:

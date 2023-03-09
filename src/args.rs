@@ -16,9 +16,17 @@ pub struct Opts {
 	#[argh(switch, short = 'v')]
 	pub verbose: bool,
 
-	/// addr:port to bind to (0.0.0.0:8080)
-	#[argh(option, short = 'a', default = "\"0.0.0.0:8080\".to_owned()")]
+	/// addr:port to bind to (0.0.0.0:8080) without tls
+	#[argh(option, short = 'l', default = "\"0.0.0.0:8080\".to_owned()")]
 	pub addr: String,
+
+	/// addr:port to bind to (0.0.0.0:8443) when tls is used
+	#[argh(option, short = 'L', default = "\"0.0.0.0:8443\".to_owned()")]
+	pub addrs: String,
+
+	/// only bind to tls (when tls config is present in configuration file)
+	#[argh(switch, short = 'S')]
+	pub secure: bool,
 }
 
 fn cmd<'a>(default: &'a str, path: &'a str) -> &'a str {

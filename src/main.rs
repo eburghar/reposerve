@@ -20,7 +20,13 @@ use rustls::{Certificate, PrivateKey, ServerConfig};
 use rustls_pemfile::{certs, pkcs8_private_keys, rsa_private_keys};
 use std::{fs::File, io::BufReader};
 
-async fn serve(mut config: Config, addr: String, dev: bool) -> anyhow::Result<()> {
+async fn serve(
+	mut config: Config,
+	secure: bool,
+	addr: String,
+	addrs: String,
+	dev: bool,
+) -> anyhow::Result<()> {
 	// set keys from jwks endpoint
 	if let Some(ref mut jwt) = config.jwt {
 		let _ = jwt
@@ -67,8 +73,8 @@ async fn serve(mut config: Config, addr: String, dev: bool) -> anyhow::Result<()
 		)
 	});
 
-	// bind to http or https
-	let server = if let Some(ref tls) = tls {
+	// bind to https if tls configuration is present
+	let mut server = if let Some(ref tls) = tls {
 		// Create tls config
 		let config = ServerConfig::builder()
 			.with_safe_defaults()
@@ -103,23 +109,30 @@ async fn serve(mut config: Config, addr: String, dev: bool) -> anyhow::Result<()
 			.with_single_cert(crt_chain, keys.swap_remove(0))
 			.with_context(|| "error setting crt/key pair")?;
 		server
-			.bind_rustls(&addr, tls_config)
-			.with_context(|| format!("unable to bind to https://{}", &addr))?
-			.run()
+			.bind_rustls(&addrs, tls_config)
+			.with_context(|| format!("unable to bind to https://{}", &addrs))?
 	} else {
 		log::warn!("TLS is not activated. Use only for development");
 		server
-			.bind(&addr)
-			.with_context(|| format!("unable to bind to http://{}", &addr))?
-			.run()
 	};
 
-	log::info!(
-		"listening on http{}://{}",
-		if tls.is_some() { "s" } else { "" },
-		&addr
-	);
-	server.await?;
+	// bind to http if secure is false (default)
+	server = if !secure {
+		server
+			.bind(&addr)
+			.with_context(|| format!("unable to bind to http://{}", &addr))?
+	} else {
+		server
+	};
+
+	if !secure {
+		log::info!("listening on http://{}", &addr);
+	}
+	if tls.is_some() {
+		log::info!("listening on https://{}", &addrs);
+	}
+
+	server.run().await?;
 	Ok(())
 }
 
@@ -140,6 +153,6 @@ fn main() -> anyhow::Result<()> {
 
 	// start actix main loop
 	let system = actix_web::rt::System::new();
-	system.block_on(serve(config, opts.addr, opts.dev))?;
+	system.block_on(serve(config, opts.secure, opts.addr, opts.addrs, opts.dev))?;
 	Ok(())
 }
