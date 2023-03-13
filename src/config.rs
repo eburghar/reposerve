@@ -1,9 +1,8 @@
+use actix_schemeredirect_middleware::data::{Redirect, StrictTransportSecurity};
 use actix_token_middleware::data::Jwt;
 use anyhow::{Context, Result};
 use serde::Deserialize;
-use std::collections::HashMap;
-use std::fs::File;
-use std::path::PathBuf;
+use std::{collections::HashMap, fs::File, path::PathBuf};
 
 #[derive(Deserialize, Clone)]
 /// Tls configuration
@@ -12,6 +11,10 @@ pub struct Tls {
 	pub crt: PathBuf,
 	/// key path
 	pub key: PathBuf,
+	/// redirect configuration
+	pub redirect: Option<Redirect>,
+	/// hsts configuration
+	pub hsts: Option<StrictTransportSecurity>,
 }
 
 /// Configuration of reposerve
@@ -30,7 +33,7 @@ pub struct Config {
 impl Config {
 	pub fn read(config: &str) -> Result<Config> {
 		// open configuration file
-		let file = File::open(&config).with_context(|| format!("Can't open {}", &config))?;
+		let file = File::open(config).with_context(|| format!("Can't open {}", &config))?;
 		// deserialize configuration
 		let config: Config =
 			serde_yaml::from_reader(file).with_context(|| format!("Can't read {}", &config))?;

@@ -32,8 +32,7 @@ pub struct Opts {
 fn cmd<'a>(default: &'a str, path: &'a str) -> &'a str {
 	Path::new(path)
 		.file_name()
-		.map(|s| s.to_str())
-		.flatten()
+		.and_then(|s| s.to_str())
 		.unwrap_or(default)
 }
 

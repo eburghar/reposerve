@@ -9,6 +9,7 @@ use crate::{
 };
 
 use actix_files::Files;
+use actix_schemeredirect_middleware::middleware::SchemeRedirect;
 use actix_token_middleware::middleware::jwtauth::JwtAuth;
 use actix_web::{
 	middleware::Logger,
@@ -29,8 +30,7 @@ async fn serve(
 ) -> anyhow::Result<()> {
 	// set keys from jwks endpoint
 	if let Some(ref mut jwt) = config.jwt {
-		let _ = jwt
-			.set_keys()
+		jwt.set_keys()
 			.await
 			.map_err(|e| anyhow!("failed to get jkws keys {}", e))?;
 	} else if dev {
@@ -43,11 +43,31 @@ async fn serve(
 
 	// build the server
 	let server = HttpServer::new(move || {
+		let tls = config.tls.as_ref();
+		// redirect only in dual protocoal and if a redirect config is provided
+		let redirect_service =
+			if let Some(redirect) = tls.filter(|_| !secure).and_then(|c| c.redirect.clone()) {
+				log::info!(
+					"redirect to https:{:?} for {:?} protocol(s)",
+					redirect.port.unwrap_or(443),
+					redirect.protocols
+				);
+				SchemeRedirect::new(
+					redirect.protocols,
+					tls.and_then(|o| o.hsts.clone()),
+					redirect.port,
+				)
+			} else {
+				// no redirection by default
+				SchemeRedirect::default()
+			};
+
 		let mut app = App::new()
 			.wrap(Logger::default())
+			.wrap(redirect_service)
 			.app_data(Data::new(config.clone()));
 
-		// wrap /webhook and /upload if jwt is set
+		// wrap /webhook and /upload inside JwtAuth if jwt is set
 		if let Some(ref jwt) = config.jwt {
 			app = app
 				.service(
@@ -60,7 +80,7 @@ async fn serve(
 						.wrap(JwtAuth::new(jwt.clone()))
 						.route(web::post().to(upload)),
 				)
-		// else dev mode !
+		// otherwise mount /webhook and /upload with no protection only if dev mode is activated
 		} else if dev {
 			app = app
 				.service(web::resource("/webhook/{webhook}").route(web::post().to(webhook)))
@@ -74,7 +94,11 @@ async fn serve(
 	});
 
 	// bind to https if tls configuration is present
-	let mut server = if let Some(ref tls) = tls {
+	let mut server = if let Some(tls) = &tls {
+		// information about hsts
+		if let Some(hsts) = &tls.hsts {
+			log::info!("send HSTS header: {:?}", hsts.to_string());
+		}
 		// Create tls config
 		let config = ServerConfig::builder()
 			.with_safe_defaults()
@@ -95,12 +119,12 @@ async fn serve(
 			rsa_private_keys(&mut BufReader::new(File::open(&tls.key)?))
 				.map_err(invalid_key)
 				// return an error if there is no key
-				.and_then(|x| (!x.is_empty()).then(|| x).ok_or_else(no_key))
+				.and_then(|x| (!x.is_empty()).then_some(x).ok_or_else(no_key))
 				.or_else(|_| {
 					pkcs8_private_keys(&mut BufReader::new(File::open(&tls.key)?))
 						.map_err(invalid_key)
 						// return an error if there is no key
-						.and_then(|x| (!x.is_empty()).then(|| x).ok_or_else(no_key))
+						.and_then(|x| (!x.is_empty()).then_some(x).ok_or_else(no_key))
 				})?
 				.into_iter()
 				.map(PrivateKey)
@@ -143,7 +167,7 @@ fn main() -> anyhow::Result<()> {
 	// setup logging
 	env_logger::init_from_env(
 		env_logger::Env::new()
-			.default_filter_or("reposerve=info,actix_web=info")
+			.default_filter_or("reposerve=info,actix_web=info,actix_schemeredirect_middleware=info,actix-token-middleware=info")
 			.default_write_style_or("auto"),
 	);
 	log::info!("{} v{}", env!("CARGO_BIN_NAME"), env!("CARGO_PKG_VERSION"));

@@ -59,7 +59,7 @@ pub(crate) async fn upload(
 			// save file to tmp dir
 			Some("file") => {
 				if let Some(filename) = field.content_disposition().get_filename() {
-					let sane_file = sanitize(&filename);
+					let sane_file = sanitize(filename);
 					let filepath = temp_dir.path().join(&sane_file);
 					log::info!("saving {}", filepath.display());
 					files.push(sane_file);
@@ -137,7 +137,7 @@ pub(crate) async fn upload(
 	// call abuild-sign to sign generated index
 	let cmd = Command::new("/usr/bin/abuild-sign")
 		.current_dir(&root)
-		.args(&["APKINDEX.tar.gz"])
+		.args(["APKINDEX.tar.gz"])
 		.output();
 	match cmd {
 		Ok(output) => log::info!(

@@ -2,6 +2,13 @@ dir: /home/eric/.workspace/rust/reposerve/tmp
 tls:
   crt: tls.crt
   key: tls.key
+  redirect:
+    port: 8443
+    protocols: ipv6
+  hsts:
+    duration: 300
+    preload: true
+    include_subdomains: true
 jwt:
   jwks: https://git.itsufficient.me/-/jwks
   claims:
